@@ -8,6 +8,7 @@ extern crate serde_json;
 extern crate tokio;
 extern crate futures;
 extern crate bytes;
+extern crate tokio_stream;
 
 use serde::{Deserialize, Serialize};
 use mqtt::event::{PublishEvent, SubscribeEvent};
@@ -17,9 +18,12 @@ pub mod mqtt;
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
+    use futures::StreamExt;
     use rumqttc::v5::MqttOptions;
     use tokio::{task, time};
+    use tokio_stream::wrappers::ReceiverStream;
     use crate::mqtt::Listener;
+    use crate::mqtt::stream::Stream;
     use super::*;
 
     #[derive(Serialize, Deserialize)]
@@ -130,5 +134,45 @@ mod tests {
         println!("Factorials:\n{results}");
 
         task.abort();
+    }
+
+    #[tokio::test]
+    async fn test_stream() {
+
+        let mut listener = connect();
+        let con = listener.connection().clone();
+
+        let stream = Stream::<i32>::new("event/some_kind_of_integer_stream");
+        let mut receiver = stream.receiver(con.clone());
+        let sender = stream.sender(con.clone());
+
+        let listener_task = task::spawn(async move {
+            listener.listen().await;
+        });
+
+        let sender_task = task::spawn(async move {
+            time::sleep(Duration::from_millis(1000)).await;
+
+            for i in 0..10 {
+                println!("Sending {i}");
+                sender.send(i).await.unwrap();
+
+                time::sleep(Duration::from_millis(100)).await;
+            }
+        });
+
+        time::sleep(Duration::from_millis(1000)).await;
+
+        let mut results = ReceiverStream::new(receiver)
+            .map(|res| res.unwrap())
+            .map(|i| { println!("{i}"); i })
+            .collect::<Vec<_>>().await;
+
+        assert_eq!((0..10).collect::<Vec<_>>(), results);
+
+        println!("Counted: {results:?}");
+
+        listener_task.abort();
+        sender_task.abort();
     }
 }

@@ -7,6 +7,7 @@ use event::event_handler::{EventHandler, Invocation};
 
 pub mod event;
 pub mod error;
+pub mod stream;
 
 
 #[derive(Clone)]

@@ -10,6 +10,7 @@ use rumqttc::v5::ClientError;
 use rumqttc::v5::mqttbytes::QoS;
 use rumqttc::v5::mqttbytes::v5::PublishProperties;
 use crate::mqtt::Connection;
+use crate::mqtt::error::PublishError;
 use crate::mqtt::event::event_handler::Fulfillable;
 
 struct ResponseContent {
@@ -108,14 +109,17 @@ impl<T: for<'a> Deserialize<'a> + Unpin + Send + 'static> Response<T> {
 }
 
 impl<T: for<'a> Deserialize<'a>> Future for Response<T> {
-    type Output = Result<T, serde_json::Error>;
+    type Output = Result<T, PublishError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut content = self.content.lock().unwrap();
         content.waker = Some(cx.waker().clone());
         content.payload.clone()
             .map(|str| { cx.waker().wake_by_ref(); str })
-            .map(|str| serde_json::from_str(&str))
+            .map(|str| Some(str)
+                .filter(|str| !str.is_empty())
+                .ok_or_else(|| PublishError::EmptyPayload)
+                .and_then(|str| serde_json::from_str(&str).map_err(Into::into)))
     }
 }
 

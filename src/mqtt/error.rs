@@ -35,6 +35,7 @@ impl Serialize for EventParseError {
 pub enum PublishError {
     ClientError(ClientError),
     Serialization(serde_json::Error),
+    EmptyPayload,
     Runtime(String)
 }
 
@@ -43,6 +44,7 @@ impl Serialize for PublishError {
         match self {
             PublishError::ClientError(_) => SerializableError::new("CLIENT", "Client failed receiving event"),
             PublishError::Serialization(_) => SerializableError::new("SERIALIZATION", "Client failed serializing response"),
+            PublishError::EmptyPayload => SerializableError::new("EMPTY_PAYLOAD", "Client responded with an empty payload"),
             PublishError::Runtime(err) => SerializableError::new("RUNTIME", err.clone())
         }.serialize(serializer)
     }
