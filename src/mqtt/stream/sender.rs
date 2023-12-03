@@ -1,17 +1,19 @@
-use std::marker::PhantomData;
+use crate::mqtt::error::PublishError;
+use crate::mqtt::Connection;
 use rumqttc::v5::mqttbytes::QoS;
 use serde::Serialize;
-use crate::mqtt::Connection;
-use crate::mqtt::error::PublishError;
+use std::marker::PhantomData;
 
 pub struct Sender<T: Serialize + Send + Sync> {
     topic: String,
     conn: Connection,
-    p: PhantomData<T>
+    p: PhantomData<T>,
 }
 
 async fn send(topic: &str, payload: String, conn: &Connection) -> Result<(), PublishError> {
-    conn.client.publish(topic, QoS::ExactlyOnce, false, payload).await?;
+    conn.client
+        .publish(topic, QoS::ExactlyOnce, false, payload)
+        .await?;
     Ok(())
 }
 
@@ -26,12 +28,11 @@ impl<T: Serialize + Send + Sync> Drop for Sender<T> {
 }
 
 impl<T: Serialize + Send + Sync> Sender<T> {
-
     pub fn new(topic: &str, conn: Connection) -> Sender<T> {
         Sender {
             topic: topic.to_string(),
             conn,
-            p: PhantomData
+            p: PhantomData,
         }
     }
 

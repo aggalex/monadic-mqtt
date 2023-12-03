@@ -1,17 +1,17 @@
-use serde::{Deserialize};
-use std::sync::{Arc, Mutex};
-use std::task::{Context, Poll, Waker};
-use std::marker::PhantomData;
-use std::future::Future;
-use std::pin::Pin;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use lazy_static::lazy_static;
-use rumqttc::v5::ClientError;
-use rumqttc::v5::mqttbytes::QoS;
-use rumqttc::v5::mqttbytes::v5::PublishProperties;
-use crate::mqtt::Connection;
 use crate::mqtt::error::PublishError;
 use crate::mqtt::event::event_handler::Fulfillable;
+use crate::mqtt::Connection;
+use lazy_static::lazy_static;
+use rumqttc::v5::mqttbytes::v5::PublishProperties;
+use rumqttc::v5::mqttbytes::QoS;
+use rumqttc::v5::ClientError;
+use serde::Deserialize;
+use std::future::Future;
+use std::marker::PhantomData;
+use std::pin::Pin;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
+use std::task::{Context, Poll, Waker};
 
 struct ResponseContent {
     payload: Poll<String>,
@@ -24,33 +24,29 @@ impl Clone for ResponseContent {
         Self {
             payload: self.payload.clone(),
             waker: self.waker.clone(),
-            publish_properties: self.publish_properties.clone()
+            publish_properties: self.publish_properties.clone(),
         }
     }
 }
 
-unsafe impl Send for ResponseContent {
-
-}
+unsafe impl Send for ResponseContent {}
 
 impl Unpin for ResponseContent {}
 
 impl ResponseContent {
     fn new() -> Arc<Mutex<ResponseContent>> {
-        Arc::new(Mutex::new(
-            ResponseContent {
-                payload: Poll::Pending,
-                waker: None,
-                publish_properties: None
-            }
-        ))
+        Arc::new(Mutex::new(ResponseContent {
+            payload: Poll::Pending,
+            waker: None,
+            publish_properties: None,
+        }))
     }
 }
 
 pub struct Response<T: for<'a> Deserialize<'a>> {
     content: Arc<Mutex<ResponseContent>>,
     topic: String,
-    p: PhantomData<T>
+    p: PhantomData<T>,
 }
 
 impl<T: for<'a> Deserialize<'a>> Clone for Response<T> {
@@ -58,18 +54,14 @@ impl<T: for<'a> Deserialize<'a>> Clone for Response<T> {
         Self {
             content: self.content.clone(),
             topic: self.topic.clone(),
-            p: PhantomData
+            p: PhantomData,
         }
     }
 }
 
-unsafe impl<T: for<'a> Deserialize<'a>> Send for Response<T> {
+unsafe impl<T: for<'a> Deserialize<'a>> Send for Response<T> {}
 
-}
-
-unsafe impl<T: for<'a> Deserialize<'a>> Sync for Response<T> {
-
-}
+unsafe impl<T: for<'a> Deserialize<'a>> Sync for Response<T> {}
 
 lazy_static! {
     static ref next_response_id: AtomicUsize = AtomicUsize::new(0usize);
@@ -80,17 +72,21 @@ impl<T: for<'a> Deserialize<'a>> Response<T> {
         Response {
             content: ResponseContent::new(),
             topic: topic.to_string(),
-            p: PhantomData
+            p: PhantomData,
         }
     }
 
     pub fn new(topic: &str) -> Response<T> {
         Response {
             content: ResponseContent::new(),
-            topic: format!("{}/__res_{}", topic, next_response_id
-                .fetch_update(Ordering::SeqCst, Ordering::SeqCst,
-                              |x| Some(x + 1)).unwrap()),
-            p: PhantomData
+            topic: format!(
+                "{}/__res_{}",
+                topic,
+                next_response_id
+                    .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |x| Some(x + 1))
+                    .unwrap()
+            ),
+            p: PhantomData,
         }
     }
 
@@ -102,7 +98,9 @@ impl<T: for<'a> Deserialize<'a>> Response<T> {
 impl<T: for<'a> Deserialize<'a> + Unpin + Send + 'static> Response<T> {
     pub async fn subscribe(&self, conn: &Connection) -> Result<(), ClientError> {
         let awaited_responses = conn.awaited_responses.clone();
-        conn.client.subscribe(self.topic.clone(), QoS::AtLeastOnce).await?;
+        conn.client
+            .subscribe(self.topic.clone(), QoS::AtLeastOnce)
+            .await?;
         awaited_responses.add(self.topic.to_string(), self.clone());
         Ok(())
     }
@@ -114,12 +112,19 @@ impl<T: for<'a> Deserialize<'a>> Future for Response<T> {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut content = self.content.lock().unwrap();
         content.waker = Some(cx.waker().clone());
-        content.payload.clone()
-            .map(|str| { cx.waker().wake_by_ref(); str })
-            .map(|str| Some(str)
-                .filter(|str| !str.is_empty())
-                .ok_or_else(|| PublishError::EmptyPayload)
-                .and_then(|str| serde_json::from_str(&str).map_err(Into::into)))
+        content
+            .payload
+            .clone()
+            .map(|str| {
+                cx.waker().wake_by_ref();
+                str
+            })
+            .map(|str| {
+                Some(str)
+                    .filter(|str| !str.is_empty())
+                    .ok_or_else(|| PublishError::EmptyPayload)
+                    .and_then(|str| serde_json::from_str(&str).map_err(Into::into))
+            })
     }
 }
 

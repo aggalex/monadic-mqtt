@@ -3,33 +3,33 @@
 #![feature(noop_waker)]
 #![feature(return_position_impl_trait_in_trait)]
 
+extern crate bytes;
+extern crate futures;
 extern crate serde;
 extern crate serde_json;
 extern crate tokio;
-extern crate futures;
-extern crate bytes;
 extern crate tokio_stream;
 
-use serde::{Deserialize, Serialize};
 use mqtt::event::{PublishEvent, SubscribeEvent};
+use serde::{Deserialize, Serialize};
 
 pub mod mqtt;
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use super::*;
+    use crate::mqtt::stream::Stream;
+    use crate::mqtt::Listener;
     use futures::StreamExt;
     use rumqttc::v5::MqttOptions;
+    use std::time::Duration;
     use tokio::{task, time};
     use tokio_stream::wrappers::ReceiverStream;
-    use crate::mqtt::Listener;
-    use crate::mqtt::stream::Stream;
-    use super::*;
 
     #[derive(Serialize, Deserialize)]
     struct Sum {
         a: i32,
-        b: i32
+        b: i32,
     }
 
     // TODO attribute
@@ -46,7 +46,7 @@ mod tests {
     }
 
     #[derive(Serialize, Deserialize)]
-    struct Factorial (i32);
+    struct Factorial(i32);
 
     impl PublishEvent for Factorial {
         type Response = i64;
@@ -57,9 +57,9 @@ mod tests {
         type Error = String;
         fn invoke(&self) -> Result<Self::Response, Self::Error> {
             if self.0 <= 0 {
-                return Err("Non-positive factorials not supported".to_string())
+                return Err("Non-positive factorials not supported".to_string());
             } else if self.0 == 1 {
-                return Ok(1)
+                return Ok(1);
             }
             let mut product = 1i64;
             Ok((2..=self.0).map(i64::from).fold(1i64, |a, b| a * b))
@@ -76,14 +76,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_serial() {
-
         let mut listener = connect();
         let con = listener.connection().clone();
 
         let task = task::spawn(async move {
-            listener
-                .subscribe::<Sum>().await
-                .listen().await;
+            listener.subscribe::<Sum>().await.listen().await;
         });
 
         time::sleep(Duration::from_millis(1000)).await;
@@ -99,14 +96,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_parallel() {
-
         let mut listener = connect();
         let con = listener.connection().clone();
 
         let task = task::spawn(async move {
-            listener
-                .subscribe::<Factorial>().await
-                .listen().await;
+            listener.subscribe::<Factorial>().await.listen().await;
         });
 
         time::sleep(Duration::from_millis(1000)).await;
@@ -114,7 +108,8 @@ mod tests {
         let handles = (0..10).map(|i| {
             let con = con.clone();
             async move {
-                task::spawn(Factorial(i).publish(con)).await
+                task::spawn(Factorial(i).publish(con))
+                    .await
                     .into_iter()
                     .flatten()
                     .map(|res| (i, res))
@@ -122,7 +117,8 @@ mod tests {
             }
         });
 
-        let results = futures::future::join_all(handles).await
+        let results = futures::future::join_all(handles)
+            .await
             .into_iter()
             .flat_map(|opt: Option<_>| opt.into_iter())
             .map(|(i, res)| format!("{i}! = {res}"))
@@ -138,7 +134,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_stream() {
-
         let mut listener = connect();
         let con = listener.connection().clone();
 
@@ -165,8 +160,12 @@ mod tests {
 
         let results = ReceiverStream::new(receiver)
             .map(|res| res.unwrap())
-            .map(|i| { println!("{i}"); i })
-            .collect::<Vec<_>>().await;
+            .map(|i| {
+                println!("{i}");
+                i
+            })
+            .collect::<Vec<_>>()
+            .await;
 
         assert_eq!((0..10).collect::<Vec<_>>(), results);
 
