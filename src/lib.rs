@@ -32,7 +32,6 @@ mod tests {
         b: i32,
     }
 
-    // TODO attribute
     impl PublishEvent for Sum {
         type Response = i32;
         const TOPIC: &'static str = "event/sum";

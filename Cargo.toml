@@ -1,5 +1,5 @@
 [package]
-name = "iot-monads"
+name = "monadic-mqtt"
 version = "0.1.0"
 edition = "2021"
 
