@@ -19,6 +19,8 @@ pub trait PublishEvent: Serialize {
 
     const TOPIC: &'static str;
 
+    const QUALITY_OF_SERVICE: QoS = QoS::AtMostOnce;
+
     fn publish(self, conn: Connection) -> impl Future<Output = Result<Self::Response, PublishError>> where Self: Sized {
         async move {
             let response = Response::<Self::Response>::new(Self::TOPIC);
@@ -26,7 +28,7 @@ pub trait PublishEvent: Serialize {
 
             conn.client.publish_with_properties(
                 Self::TOPIC,
-                QoS::AtLeastOnce,
+                Self::QUALITY_OF_SERVICE,
                 false,
                 serde_json::to_string(&self)?,
                 PublishProperties {
@@ -70,8 +72,8 @@ pub trait SubscribeEvent: for<'a> Deserialize<'a> + PublishEvent {
 
     fn invoke(&self) -> Result<Self::Response, Self::Error>;
 
-    fn subscribe(conn: &Connection, qo_s: QoS) -> impl Future<Output = Result<(), ClientError>>{
-        conn.client.subscribe(Self::TOPIC, qo_s)
+    fn subscribe(conn: &Connection) -> impl Future<Output = Result<(), ClientError>>{
+        conn.client.subscribe(Self::TOPIC, Self::QUALITY_OF_SERVICE)
     }
 
 }

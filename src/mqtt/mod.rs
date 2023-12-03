@@ -50,7 +50,7 @@ impl Listener {
     pub async fn subscribe<C: SubscribeEvent + Send + 'static>(&mut self) -> &mut Listener {
         let client = self.connection.client.clone();
         self.connection.events.add(C::TOPIC.to_string(), Invocation::<C>::new(client));
-        C::subscribe(&self.connection, QoS::AtLeastOnce).await.unwrap();
+        C::subscribe(&self.connection).await.unwrap();
         self
     }
 

@@ -163,7 +163,7 @@ mod tests {
 
         time::sleep(Duration::from_millis(1000)).await;
 
-        let mut results = ReceiverStream::new(receiver)
+        let results = ReceiverStream::new(receiver)
             .map(|res| res.unwrap())
             .map(|i| { println!("{i}"); i })
             .collect::<Vec<_>>().await;
