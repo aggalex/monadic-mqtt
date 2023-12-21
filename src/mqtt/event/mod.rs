@@ -25,7 +25,7 @@ pub trait PublishEvent: Serialize {
         Self: Sized,
     {
         async move {
-            let response = Response::<Self::Response>::new(Self::TOPIC);
+            let response = Response::<Self::Response>::from_request_topic(Self::TOPIC);
             response.subscribe(&conn).await?;
 
             conn.client
@@ -56,7 +56,7 @@ impl PublishEvent for () {
         _conn: Connection,
     ) -> impl Future<Output = Result<Self::Response, PublishError>> {
         async {
-            let response = Response::new("");
+            let response = Response::from_request_topic("");
             response.fulfill("".to_string(), None);
             Ok(response.await?)
         }

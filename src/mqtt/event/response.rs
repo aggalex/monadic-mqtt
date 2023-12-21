@@ -46,6 +46,7 @@ impl ResponseContent {
 pub struct Response<T: for<'a> Deserialize<'a>> {
     content: Arc<Mutex<ResponseContent>>,
     topic: String,
+    id: usize,
     p: PhantomData<T>,
 }
 
@@ -54,6 +55,7 @@ impl<T: for<'a> Deserialize<'a>> Clone for Response<T> {
         Self {
             content: self.content.clone(),
             topic: self.topic.clone(),
+            id: self.id,
             p: PhantomData,
         }
     }
@@ -68,30 +70,32 @@ lazy_static! {
 }
 
 impl<T: for<'a> Deserialize<'a>> Response<T> {
-    pub fn new_without_id(topic: &str) -> Response<T> {
+    pub fn with_exact_topic(topic: &str) -> Response<T> {
         Response {
             content: ResponseContent::new(),
             topic: topic.to_string(),
+            id: Default::default(),
             p: PhantomData,
         }
     }
 
-    pub fn new(topic: &str) -> Response<T> {
+    pub fn from_request_topic(topic: &str) -> Response<T> {
         Response {
             content: ResponseContent::new(),
-            topic: format!(
-                "{}/__res_{}",
-                topic,
-                next_response_id
-                    .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |x| Some(x + 1))
-                    .unwrap()
-            ),
+            topic: format!("{}/__res", topic),
+            id: next_response_id
+                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |x| Some(x + 1))
+                .unwrap(),
             p: PhantomData,
         }
     }
 
     pub(crate) fn publish_properties(&self) -> Option<PublishProperties> {
         self.content.lock().unwrap().publish_properties.clone()
+    }
+
+    pub(crate) fn id(&self) -> usize {
+        self.id
     }
 }
 

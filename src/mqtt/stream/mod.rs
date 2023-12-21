@@ -40,7 +40,7 @@ async fn get_next_response<T: DeserializeOwned + Unpin + Send + 'static>(
     topic: &str,
     conn: &Connection,
 ) -> Result<T, PublishError> {
-    let response = Response::<T>::new_without_id(&topic);
+    let response = Response::<T>::with_exact_topic(&topic);
     response.subscribe(&conn).await?;
     Ok(response.await?)
 }

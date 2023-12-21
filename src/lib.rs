@@ -9,6 +9,7 @@ extern crate serde;
 extern crate serde_json;
 extern crate tokio;
 extern crate tokio_stream;
+extern crate uuid;
 
 use mqtt::event::{PublishEvent, SubscribeEvent};
 use serde::{Deserialize, Serialize};
