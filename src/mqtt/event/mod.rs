@@ -69,15 +69,15 @@ impl PublishEvent for i32 {
 }
 
 impl SubscribeEvent for i32 {
-    fn invoke(&self) -> Result<Self::Response, Self::Error> {
-        Ok(())
+    fn invoke(&self) -> impl Future<Output = Result<Self::Response, Self::Error>> {
+        async { Ok(()) }
     }
 }
 
 pub trait SubscribeEvent: for<'a> Deserialize<'a> + PublishEvent {
     type Error: Debug + Serialize = ();
 
-    fn invoke(&self) -> Result<Self::Response, Self::Error>;
+    fn invoke(&self) -> impl Future<Output = Result<Self::Response, Self::Error>> + Send;
 
     fn subscribe(conn: &Connection) -> impl Future<Output = Result<(), ClientError>> {
         conn.client.subscribe(Self::TOPIC, Self::QUALITY_OF_SERVICE)

@@ -2,6 +2,7 @@
 #![feature(async_closure)]
 #![feature(noop_waker)]
 #![feature(return_position_impl_trait_in_trait)]
+#![feature(try_blocks)]
 
 extern crate bytes;
 extern crate futures;
@@ -17,6 +18,7 @@ pub mod mqtt;
 
 #[cfg(test)]
 mod tests {
+    use std::future::Future;
     use super::*;
     use crate::mqtt::stream::Stream;
     use crate::mqtt::Listener;
@@ -38,9 +40,11 @@ mod tests {
     }
 
     impl SubscribeEvent for Sum {
-        fn invoke(&self) -> Result<Self::Response, Self::Error> {
-            println!("summing {} + {}", self.a, self.b);
-            Ok(self.a + self.b)
+        fn invoke(&self) -> impl Future<Output = Result<Self::Response, Self::Error>> {
+            async {
+                println!("summing {} + {}", self.a, self.b);
+                Ok(self.a + self.b)
+            }
         }
     }
 
@@ -54,14 +58,17 @@ mod tests {
 
     impl SubscribeEvent for Factorial {
         type Error = String;
-        fn invoke(&self) -> Result<Self::Response, Self::Error> {
-            if self.0 <= 0 {
-                return Err("Non-positive factorials not supported".to_string());
-            } else if self.0 == 1 {
-                return Ok(1);
+        fn invoke(&self) -> impl Future<Output = Result<Self::Response, Self::Error>> {
+            async {
+                if self.0 <= 0 {
+                    Err("Non-positive factorials not supported".to_string())
+                } else if self.0 == 1 {
+                    Ok(1)
+                } else {
+                    let mut product = 1i64;
+                    Ok((2..=self.0).map(i64::from).fold(1i64, |a, b| a * b))
+                }
             }
-            let mut product = 1i64;
-            Ok((2..=self.0).map(i64::from).fold(1i64, |a, b| a * b))
         }
     }
 

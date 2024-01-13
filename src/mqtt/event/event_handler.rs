@@ -2,8 +2,10 @@ use crate::mqtt::event::SubscribeEvent;
 use rumqttc::v5::mqttbytes::v5::PublishProperties;
 use rumqttc::v5::{mqttbytes::QoS, AsyncClient};
 use std::collections::HashMap;
+use std::error::Error;
 use std::marker::PhantomData;
 use std::sync::{Arc, RwLock};
+use futures::TryFutureExt;
 
 pub trait Fulfillable: Send + Sync {
     fn fulfill(&self, str: String, response_topic: Option<&PublishProperties>);
@@ -28,19 +30,24 @@ impl<C: SubscribeEvent + Send> Fulfillable for Invocation<C> {
         let response_topic =
             properties.and_then(|prop| prop.response_topic.as_deref().map(ToString::to_string));
         tokio::spawn(async move {
-            let payload = serde_json::from_str::<C>(&content)
-                .map_err(|err| format!("{err:?}"))
-                .and_then(|client_event| client_event.invoke().map_err(|err| format!("{err:?}"))) // This is the possibly time consuming action
-                .and_then(|res| serde_json::to_string(&res).map_err(|err| format!("{err:?}")))
-                .unwrap_or_else(|err| err);
-            if let Some(topic) = response_topic {
-                if let Err(err) = client
-                    .publish(topic.clone(), QoS::AtLeastOnce, false, payload)
-                    .await
-                {
-                    eprintln!("===>> Error: {:?}", err);
+            let res: Result<(), String> = try {
+                let res = serde_json::from_str::<C>(&content)
+                    .map_err(|e| format!("{}", e))?
+                    .invoke().await
+                    .map_err(|e| format!("{:?}", e))?;
+                let payload = serde_json::to_string(&res)
+                    .map_err(|e| format!("{}", e))?;
+                if let Some(topic) = response_topic {
+                    client
+                        .publish(topic.clone(), QoS::AtLeastOnce, false, payload)
+                        .await
+                        .map_err(|e| format!("{}", e))?
                 }
-            }
+            };
+            if let Err(err) = res {
+                eprintln!("===>> Error: {:?}", err);
+            };
+
         });
     }
 
