@@ -32,11 +32,11 @@ impl<C: SubscribeEvent + Send> Fulfillable for Invocation<C> {
         tokio::spawn(async move {
             let res: Result<(), String> = try {
                 let res = serde_json::from_str::<C>(&content)
-                    .map_err(|e| format!("{}", e))?
+                    .map_err(|e| format!("Deserialization error: {}", e))?
                     .invoke().await
-                    .map_err(|e| format!("{:?}", e))?;
+                    .map_err(|e| format!("Invocation error: {:?}", e))?;
                 let payload = serde_json::to_string(&res)
-                    .map_err(|e| format!("{}", e))?;
+                    .map_err(|e| format!("Serialization error {}", e))?;
                 if let Some(topic) = response_topic {
                     client
                         .publish(topic.clone(), QoS::AtLeastOnce, false, payload)
