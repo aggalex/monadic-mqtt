@@ -92,7 +92,7 @@ mod tests {
         time::sleep(Duration::from_millis(1000)).await;
 
         for i in 0..10 {
-            let result = Sum { a: 1, b: i }.publish(con.clone()).await.unwrap();
+            let result = Sum { a: 1, b: i }.publish_and_subscribe_response(con.clone()).await.unwrap();
             println!("{result}");
             time::sleep(Duration::from_millis(100)).await;
         }
@@ -114,7 +114,7 @@ mod tests {
         let handles = (0..10).map(|i| {
             let con = con.clone();
             async move {
-                task::spawn(Factorial(i).publish(con))
+                task::spawn(Factorial(i).publish_and_subscribe_response(con))
                     .await
                     .into_iter()
                     .flatten()

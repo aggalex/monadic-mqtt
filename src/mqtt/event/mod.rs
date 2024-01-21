@@ -1,3 +1,4 @@
+use std::any::TypeId;
 use rumqttc::v5::ClientError;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -13,19 +14,17 @@ use rumqttc::v5::mqttbytes::QoS;
 pub mod event_handler;
 pub(super) mod response;
 
-pub trait PublishEvent: Serialize {
+pub trait PublishEvent: Serialize + Sized {
     type Response: Serialize + for<'a> Deserialize<'a> + Send + Unpin + 'static;
 
     const TOPIC: &'static str;
 
     const QUALITY_OF_SERVICE: QoS = QoS::AtMostOnce;
 
-    fn publish(self, conn: Connection) -> impl Future<Output = Result<Self::Response, PublishError>>
-    where
-        Self: Sized,
-    {
+    fn publish_and_subscribe_response(self, conn: Connection) -> impl Future<Output = Result<Self::Response, PublishError>> {
         async move {
             let response = Response::<Self::Response>::new(Self::TOPIC);
+
             response.subscribe(&conn).await?;
 
             conn.client
@@ -45,13 +44,29 @@ pub trait PublishEvent: Serialize {
             Ok(response.await?)
         }
     }
+
+    fn publish(self, conn: Connection) -> impl Future<Output = Result<(), PublishError>> {
+        async move {
+            conn.client
+                .publish(
+                    Self::TOPIC,
+                    Self::QUALITY_OF_SERVICE,
+                    false,
+                    serde_json::to_string(&self)?,
+                )
+                .await
+                .map_err(Into::<PublishError>::into)?;
+
+            Ok(())
+        }
+    }
 }
 
 impl PublishEvent for () {
     type Response = ();
     const TOPIC: &'static str = "";
 
-    fn publish(
+    fn publish_and_subscribe_response(
         self,
         _conn: Connection,
     ) -> impl Future<Output = Result<Self::Response, PublishError>> {
