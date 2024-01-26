@@ -53,7 +53,6 @@ impl Listener {
 
     pub async fn listen(&mut self) {
         while let Ok(notification) = self.event_loop.poll().await {
-            println!("Received = {:?}", notification);
             let Event::Incoming(Incoming::Publish(event)) = notification else {
                 continue;
             };
